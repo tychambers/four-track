@@ -2,6 +2,7 @@
   "name": "four-track-app",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://tychambers.github.io/four-track/",
   "type": "module",
   "scripts": {
     "dev": "vite",
