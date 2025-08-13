@@ -1,8 +1,8 @@
 {
   "name": "four-track-app",
+  "homepage": "https://tychambers.github.io/four-track/",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://tychambers.github.io/four-track/",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@wavesurfer/react": "^1.0.11",
+    "gh-pages": "^6.3.0",
     "lamejs": "^1.2.1",
     "react": "^19.1.1",
     "react-audio-visualize": "^1.2.0",
