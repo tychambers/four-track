@@ -7,11 +7,20 @@ import stopButtonWhite from "../assets/white-stop.png"
 import stopButtonRed from "../assets/red-stop.png"
 import pauseButtonWhite from "../assets/pause-button-white.png"
 import ExportPopup from './ExportAudioBox';
+import DonationButton from './DonateButton';
+import LegendButton from './LegendButton';
 
 const MultiTrackPlayer = () => {
   const [formattedTime, setFormattedTime] = useState('0:00');
-  const [currentTime, setCurrentTime] = useState('0:00');
+  // 3 times
+  //for recording timer sync
   const [currentNewTime, setNewCurrentTime] = useState(0);
+  // for padding silence before recordings
+  const [currentRawTime, setCurrentRawTime] = useState(0);
+  // for current position
+  const [currentPosition, setCurrentPosition] = useState(0);
+  // 
+  const [currentTestTime, setCurrentTestTime] = useState("0:00");
 
   const recorderRefs = [useRef(null), useRef(null), useRef(null), useRef(null)];
 
@@ -37,13 +46,13 @@ const MultiTrackPlayer = () => {
     );
   }, [tracks]);
 
-  const handleUpdateRecording = (index, audioBuffer, url) => {
-    setTracks((prevTracks) => {
+  const handleUpdateRecording = (index, audioBuffer, url, wavesurferInstance) => {
+    setTracks(prevTracks => {
       const newTracks = [...prevTracks];
-      newTracks[index] = { audioBuffer, url };
+      newTracks[index] = { audioBuffer, url, wavesurfer: wavesurferInstance };
       return newTracks;
     });
-  };
+};
 
   const isSyncing = useRef(false);
   const handleSeek = (index) => (progress) => {
@@ -59,6 +68,7 @@ const MultiTrackPlayer = () => {
     }, 20);
   };
 
+  // function for converting maxDuration to a time format like 0:05
   const convertSecondsToMinutesAndSeconds = (totalSeconds) => {
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = Math.round(totalSeconds % 60);
@@ -69,19 +79,54 @@ const MultiTrackPlayer = () => {
     setFormattedTime(convertSecondsToMinutesAndSeconds(maxDuration));
   }, [maxDuration]);
 
+  useEffect(() => {
+    setCurrentTestTime(convertSecondsToMinutesAndSeconds(currentPosition * maxDuration));
+  }, [currentPosition])
+
+  const timerRef = useRef(null);
+
   const playAll = () => {
     setPlayButtonIsClicked(true);
     recorderRefs.forEach(ref => ref.current?.play());
+
+      // Clear any old timer
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    let secondsElapsed = 0;
+
+    // Start a 1-second interval timer
+    timerRef.current = setInterval(() => {
+      secondsElapsed += 1;
+      setCurrentTestTime(convertSecondsToMinutesAndSeconds(secondsElapsed));
+      const roundedMaxDuration = Math.round(maxDuration);
+      if (secondsElapsed >= roundedMaxDuration) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }, 1000);
   };
+
   const stopAll = () => {
     setPlayButtonIsClicked(false);
     setPlayButtonImage(playButtonWhite);
     recorderRefs.forEach(ref => ref.current?.stop());
+    setCurrentTestTime("0:00");
+
+     if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
+
   const pauseAll = () => {
     setPlayButtonIsClicked(false);
     setPlayButtonImage(playButtonWhite);
     recorderRefs.forEach(ref => ref.current?.pause());
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
 
   const clearTrack = (index) => {
@@ -150,67 +195,70 @@ const MultiTrackPlayer = () => {
     return bufferArray;
   };
 
-  const exportAllTracks = (trackTitle) => {
-    console.log("Track title:", trackTitle);
-    console.log("Type of title:", typeof trackTitle);
-    const audioCtx = new AudioContext();
+const exportAllTracks = (trackTitle) => {
+  const audioCtx = new AudioContext();
 
-    const buffers = tracks
-      .filter(t => t.audioBuffer)
-      .map(t => t.audioBuffer);
+  // Collect buffers and volumes
+  const buffersWithVolume = tracks
+    .map((t, index) => {
+      const wsInstance = recorderRefs[index].current?.getWavesurfer();
+      return t.audioBuffer
+        ? { buffer: t.audioBuffer, volume: wsInstance?.getVolume() ?? 1 }
+        : null;
+    })
+    .filter(Boolean);
 
-    if (buffers.length === 0) {
-      alert("No recordings to export.");
-      return;
-    }
+  if (!buffersWithVolume.length) {
+    alert("No recordings to export.");
+    return;
+  }
 
-    const maxLength = Math.max(...buffers.map(b => b.length));
+  // Determine maximum channels and length
+  const maxChannels = Math.max(...buffersWithVolume.map(t => t.buffer.numberOfChannels));
+  const maxLength = Math.max(...buffersWithVolume.map(t => t.buffer.length));
 
-    const masterBuffer = audioCtx.createBuffer(
-      2,
-      maxLength,
-      audioCtx.sampleRate
-    );
+  const masterBuffer = audioCtx.createBuffer(maxChannels, maxLength, audioCtx.sampleRate);
 
-    // mix
-    buffers.forEach(buffer => {
-      for (let channel = 0; channel < masterBuffer.numberOfChannels; channel++) {
-        const channelData = masterBuffer.getChannelData(channel);
-        const bufferData = buffer.getChannelData(Math.min(channel, buffer.numberOfChannels - 1));
+  // Mix each track into master buffer with volume applied
+  buffersWithVolume.forEach(({ buffer, volume }) => {
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const masterData = masterBuffer.getChannelData(ch);
+      const bufferData = buffer.getChannelData(ch);
 
-        for (let i = 0; i < bufferData.length; i++) {
-          channelData[i] += bufferData[i];
-        }
+      for (let i = 0; i < bufferData.length; i++) {
+        masterData[i] += bufferData[i] * volume;
       }
-    });
+    }
+  });
 
-    // normalize
-    for (let channel = 0; channel < masterBuffer.numberOfChannels; channel++) {
-      const channelData = masterBuffer.getChannelData(channel);
-      let maxAmp = 0;
+  // Normalize all channels
+  for (let ch = 0; ch < masterBuffer.numberOfChannels; ch++) {
+    const channelData = masterBuffer.getChannelData(ch);
+    let maxAmp = 0;
+    for (let i = 0; i < channelData.length; i++) {
+      maxAmp = Math.max(maxAmp, Math.abs(channelData[i]));
+    }
+    if (maxAmp > 1) {
       for (let i = 0; i < channelData.length; i++) {
-        maxAmp = Math.max(maxAmp, Math.abs(channelData[i]));
-      }
-      if (maxAmp > 1) {
-        for (let i = 0; i < channelData.length; i++) {
-          channelData[i] /= maxAmp;
-        }
+        channelData[i] /= maxAmp;
       }
     }
+  }
 
-    const wavData = audioBufferToWav(masterBuffer);
-    const blob = new Blob([new DataView(wavData)], { type: 'audio/wav' });
+  // Convert to WAV and download
+  const wavData = audioBufferToWav(masterBuffer);
+  const blob = new Blob([new DataView(wavData)], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const safeTitle = String(trackTitle).replace(/[^a-z0-9]/gi, "_"); // sanitize filename
-    const fileName = `${safeTitle}.wav`;
+  const a = document.createElement('a');
+  const safeTitle = String(trackTitle).replace(/[^a-z0-9]/gi, "_");
+  a.href = url;
+  a.download = `${safeTitle}.wav`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
 
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+
 
   // for handling button animations on the tool bar
 
@@ -241,7 +289,12 @@ const MultiTrackPlayer = () => {
 
   return (
     <div className='four-track-page'>
-      <div className='sour-gummy-title'>Four Track</div>
+      <div className='title-tool-bar'>
+        <div className='sour-gummy-title'>Four Track</div>
+        <LegendButton />
+        <DonationButton />
+        {/* <button className='donate-button'>DONATE!</button> */}
+      </div>
       <div className='daw-body'>
         {recorderRefs.map((ref, index) => (
           <AudioRecorder
@@ -253,9 +306,10 @@ const MultiTrackPlayer = () => {
             triggerStopAll={stopAll}
             onSeek={handleSeek(index)}
             clearTrack={() => clearTrack(index)}
-            onTimeUpdate={(time) => setCurrentTime(time)}
+            onPositionUpdate={(position) => setCurrentPosition(position)}
             onRecordingTimeUpdate={handleRecordingTimeUpdate}
             maxDuration={maxDuration}
+            currentRawTime={currentRawTime}
             isRecordingChange={handleRecordingChange}
             onUpdateRecording={(audioBuffer, url) =>
               handleUpdateRecording(index, audioBuffer, url)
@@ -280,7 +334,7 @@ const MultiTrackPlayer = () => {
           ><img className="icon-button" src={stopButtonImage} /></button>
         {/* <button onClick={clearAllTracks}>Clear All</button> */}
         <div className='time-tracker'>
-          {isRecording ? currentNewTime : currentTime}/{formattedTime}
+          {isRecording ? currentNewTime : currentTestTime}/{formattedTime}
         </div>
         <ExportPopup
           onExport={exportAllTracks}

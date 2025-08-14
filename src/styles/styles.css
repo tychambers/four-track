@@ -45,7 +45,7 @@
     font-optical-sizing: auto;
     font-weight: 700;
     font-style: normal;
-    font-size: 100px;
+    font-size: 50px;
     color: lightsalmon;
     font-variation-settings:
     "wdth" 100;
@@ -167,4 +167,155 @@ input[type="range"] {
     display: "flex";
     justify-content: "center";
     align-items: "center"
+}
+
+.title-tool-bar{
+    padding: 10px;
+    display: flex;
+    gap: 20px;
+}
+
+.legend-button{
+    background-color:#2e2e2e;
+    color:#ECDFCC;
+    font-family: "Sour Gummy", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 700;
+    font-style: normal;
+    font-variation-settings:
+    "wdth" 100;
+}
+
+.donate-button{
+    margin-left: auto;
+    background-color: lightgreen;
+    color:#2e2e2e;
+    font-family: "Sour Gummy", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 700;
+    font-style: normal;
+    font-variation-settings:
+    "wdth" 100;
+}
+
+.donation-icons {
+    height: 100px;
+    width: 100px;
+}
+
+.popup-title {
+    color: lightsalmon;
+    font-family: "Sour Gummy", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 700;
+    font-style: normal;
+    font-variation-settings:
+    "wdth" 100;
+}
+
+/* Overlay */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+/* Popup box */
+.popup-box {
+  background-color: #2e2e2e;
+  border: 2px solid #ECDFCC;
+  width: 400px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+.legend-text{
+    color:#ECDFCC;
+}
+
+/* Header */
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #ccc;
+}
+
+.popup-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* Scrollable content */
+.popup-content {
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Footer */
+.popup-footer {
+  padding: 12px;
+  border-top: 1px solid #ccc;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.close-button-footer {
+  background-color: #e5e7eb;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.close-button-footer:hover {
+  background-color: #d1d5db;
+}
+
+@media screen and (max-width: 425px) {
+    .sour-gummy-title {
+        font-size: 20px;
+    }
+    .daw-body {
+        width: 100%;
+    }
+    .icon-button {
+        height: 10px;
+        width: 10px;
+    }
+    .track-tool-bar-icon {
+        width: 10px;
+        height: 10px;
+    }
+    .volume-button {
+        display: none;
+    }
+    .audio-track-body {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: .25fr 2fr;
+        grid-column-gap: 0px;
+        grid-row-gap: 0px;
+        width: 100%;
+    }
 }

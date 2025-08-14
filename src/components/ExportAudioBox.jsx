@@ -36,7 +36,7 @@ export default function ExportPopup({ onExport }) {
                 background: "#3C3D37",
                 color: "#ECDFCC",
                 padding: 20,
-                borderRadius: 8,
+                borderRadius: "12px",
                 minWidth: 300,
                 textAlign: "center",
                 display: "flex",
@@ -44,7 +44,7 @@ export default function ExportPopup({ onExport }) {
                 justifyContent: "center"
             }}
           >
-            <h2>Export Audio</h2>
+            <h2 className="popup-title">Export Audio:</h2>
             <p>Enter a track title before exporting:</p>
 
             <input
@@ -65,7 +65,7 @@ export default function ExportPopup({ onExport }) {
             />
 
             <div>
-              <button onClick={handleExport}>Yes, Export</button>
+              <button onClick={handleExport}>Export</button>
               <button onClick={() => setShowModal(false)} style={{ marginLeft: 10 }}>
                 Cancel
               </button>

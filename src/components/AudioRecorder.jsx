@@ -9,7 +9,7 @@ import pauseButtonWhite from "../assets/pause-button-white.png"
 import stopButtonWhite from "../assets/white-stop.png"
 import trashBin from "../assets/trash-bin.png"
 
-const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber, onRecordingTimeUpdate, isRecordingChange, clearTrack, onSeek, maxDuration, onUpdateRecording, onTimeUpdate }, ref) => {
+const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber, onPositionUpdate, onRecordingTimeUpdate, isRecordingChange, clearTrack, onSeek, maxDuration, onUpdateRecording, onTimeUpdate, onRawTimeUpdate, currentRawTime }, ref) => {
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -55,23 +55,41 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
             height: 'auto',
             url: recordedUrl,
             fillParent: true,
+            interact: true
         });
 
         wavesurferInstance.current.on('click', (progress) => {
             // for overdub
             const duration = wavesurferInstance.current.getDuration();
+            console.log("duration: ", duration);
+
             const seekTime = progress * duration;
             recordingStartOffsetRef.current = seekTime; // store for punch-in
             clickPosition.current = progress;
             if (onSeek) onSeek(progress);
+
+            if (onRawTimeUpdate) {
+                onRawTimeUpdate(seekTime);
+            }
+
+            if (onPositionUpdate) {
+                const position = wavesurferInstance.current.getCurrentTime() / wavesurferInstance.current.getDuration();
+                onPositionUpdate(position);
+            }
         });
 
         wavesurferInstance.current.on("audioprocess", () => {
             const time = wavesurferInstance.current.getCurrentTime();
             recordingStartOffsetRef.current = time;
-            if (onTimeUpdate) {
-                let formattedTime = convertSecondsToMinutesAndSeconds(time)
-                onTimeUpdate(formattedTime);
+
+            // for padding silence before
+            if (onRawTimeUpdate) {
+                onRawTimeUpdate(time);
+            }
+
+            if (onPositionUpdate) {
+                const position = wavesurferInstance.current.getCurrentTime() / wavesurferInstance.current.getDuration();
+                onPositionUpdate(position);
             }
         });
 
@@ -90,6 +108,7 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
        initWaveSurfer();
 
         if (recordedUrl) {
+            console.log("loading wave surfer");
         wavesurferInstance.current.load(recordedUrl);
         } else {
             wavesurferInstance.current.empty(); // explicitly clear waveform
@@ -103,8 +122,11 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
 
      }, [recordedUrl]);
 
+
+     // appears to be a duplicate
     useEffect(() => {
         if (wavesurferInstance.current && recordedUrl) {
+            console.log("loading wave surfer 2");
             wavesurferInstance.current.load(recordedUrl);
         }
         }, [recordedUrl]);
@@ -126,7 +148,8 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
         isPlaying: () => isPlaying,
         seekTo: (progress) => {
             wavesurferInstance.current.seekTo(progress);
-        }
+        },
+        getWavesurfer: () => wavesurferInstance.current,
     }));
 
     const handleVolumeChange = (event) => {
@@ -241,64 +264,124 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
         const wavArrayBuffer = audioBufferToWav(audioBuffer); 
         return new Blob([wavArrayBuffer], { type: 'audio/wav' });
     }
+
+    // add silence padding to the beginning
+
+    function addSilencePadding(audioBuffer, paddingSeconds, audioCtx) {
+        const sampleRate = audioBuffer.sampleRate;
+        const numChannels = audioBuffer.numberOfChannels;
+
+        // Number of samples for the padding
+        const paddingLength = Math.floor(paddingSeconds * sampleRate);
+
+        // New buffer length = padding + original audio
+        const newBuffer = audioCtx.createBuffer(
+            numChannels,
+            audioBuffer.length + paddingLength,
+            sampleRate
+        );
+
+        for (let ch = 0; ch < numChannels; ch++) {
+            const newData = newBuffer.getChannelData(ch);
+            const originalData = audioBuffer.getChannelData(ch);
+
+            // Fill padding with 0 (silence) automatically by default
+            // Copy original audio after the padding
+            newData.set(originalData, paddingLength);
+        }
+
+        return newBuffer;
+    }
     
     // For recording button
 
     const startRecording = async () => {
-        // mutes the track if recording over
+        // Mute track during recording
         wavesurferInstance.current.setVolume(0);
-        // triggerStopAll();
-        onTimeUpdate(convertSecondsToMinutesAndSeconds(recordingStartOffsetRef.current || 0));
+
+        const offset = recordingStartOffsetRef.current || 0;
+        const position = wavesurferInstance.current.getCurrentTime() / wavesurferInstance.current.getDuration();
+        const currentDuration = position * maxDuration;
+        console.log("this is relative pos", position * maxDuration);
+        console.log("raw time from recording ", currentRawTime)
+        const paddingDuration = Math.max(0, currentDuration - offset); // silence before recording if needed
 
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         mediaRecorderRef.current = new MediaRecorder(stream);
         audioChunksRef.current = [];
-
-        // Seek WaveSurfer to offset, but DO NOT play audio during recording
-        const offset = recordingStartOffsetRef.current || 0;
-        if (wavesurferInstance.current) {
-            wavesurferInstance.current.setTime(offset);
-            // wavesurferInstance.current.play();  // <-- Remove or comment out this line
-        }
 
         mediaRecorderRef.current.ondataavailable = (event) => {
             audioChunksRef.current.push(event.data);
         };
 
         mediaRecorderRef.current.onstop = async () => {
-            const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-            const arrayBuffer = await audioBlob.arrayBuffer();
+            // try {
+                const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                const audioCtx = new AudioContext();
+                const recordedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                    
 
-            const audioCtx = new AudioContext();
-            const newBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                // If we need pre-padding silence, create a buffer for it
+                let finalBuffer = recordedBuffer;
+                if (paddingDuration > 0) {
+                    const paddingBuffer = audioCtx.createBuffer(
+                        recordedBuffer.numberOfChannels,
+                        Math.floor(paddingDuration * recordedBuffer.sampleRate),
+                        recordedBuffer.sampleRate
+                    );
 
-            let existingBuffer = null;
-            if (recordedUrl) {
-                const existingArrayBuffer = await (await fetch(recordedUrl)).arrayBuffer();
-                existingBuffer = await audioCtx.decodeAudioData(existingArrayBuffer);
-            }
+                    // Merge silence + recorded audio
+                    finalBuffer = audioCtx.createBuffer(
+                        recordedBuffer.numberOfChannels,
+                        paddingBuffer.length + recordedBuffer.length,
+                        recordedBuffer.sampleRate
+                    );
 
-            // Merge newBuffer into existingBuffer at offset (punch-in)
-            const replacedBuffer = replaceAudioWithOffset(
-                existingBuffer,
-                newBuffer,
-                offset,
-                audioCtx
-            );
+                    for (let ch = 0; ch < recordedBuffer.numberOfChannels; ch++) {
+                        const channelData = finalBuffer.getChannelData(ch);
+                        // 1️⃣ Copy silence first
+                        channelData.set(paddingBuffer.getChannelData(0), 0);
+                        // 2️⃣ Copy recorded audio after silence
+                        channelData.set(recordedBuffer.getChannelData(ch), paddingBuffer.length);
+                    }
+                }
 
-            const wavBlob = audioBufferToWavBlob(replacedBuffer);
-            const url = URL.createObjectURL(wavBlob);
-            setRecordedUrl(url);
-            wavesurferInstance.current.load(url);
+                // Adjust punch-in offset to include the padding
+                const effectiveOffset = offset + paddingDuration;
 
-            if (onUpdateRecording) {
-                onUpdateRecording(replacedBuffer, url);
-            }
+                // Merge with existing audio if any (overdub/punch-in)
+                let existingBuffer = null;
+                if (recordedUrl) {
+                    try {
+                        const existingArrayBuffer = await (await fetch(recordedUrl)).arrayBuffer();
+                        existingBuffer = await audioCtx.decodeAudioData(existingArrayBuffer);
+                    } catch {
+                        console.log("I found the error");
+                    }
+                }
+
+                const mergedBuffer = replaceAudioWithOffset(existingBuffer, finalBuffer, effectiveOffset, audioCtx);
+
+                // Ensure full duration if maxDuration is set
+                let finalMergedBuffer = mergedBuffer;
+                if (maxDuration && mergedBuffer.duration < maxDuration) {
+                    finalMergedBuffer = extendAudioBuffer(mergedBuffer, maxDuration, audioCtx);
+                }
+
+                const wavBlob = audioBufferToWavBlob(finalMergedBuffer);
+                const url = URL.createObjectURL(wavBlob);
+                setRecordedUrl(url);
+                wavesurferInstance.current.load(url);
+
+                if (onUpdateRecording) onUpdateRecording(finalMergedBuffer, url);
+            // } catch {
+            //     console.log("error caught")
+            // }
         };
 
-        timerRef.current = setInterval(() => {
-            setRecordingSeconds(prev => prev + 1);
-        }, 1000);
+        // Start recording timer
+        timerRef.current = setInterval(() => setRecordingSeconds(prev => prev + 1), 1000);
 
         isRecordingChange(true);
         mediaRecorderRef.current.start();
@@ -307,25 +390,32 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
         if (triggerPlayAll) triggerPlayAll();
     };
 
+
+
     // Whenever maxDuration changes from parent, update recording if needed
     useEffect(() => {
       if (!maxDuration || !recordedUrl) return;
       const audioCtx = new AudioContext();
 
       (async () => {
-        const response = await fetch(recordedUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        try {
+            const response = await fetch(recordedUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-        if (audioBuffer.duration < maxDuration) {
-          const paddedBuffer = extendAudioBuffer(audioBuffer, maxDuration, audioCtx);
-          const wavBlob = audioBufferToWavBlob(paddedBuffer);
-          const newUrl = URL.createObjectURL(wavBlob);
-          setRecordedUrl(newUrl);
-          if (onUpdateRecording) {
-            onUpdateRecording(paddedBuffer, newUrl);
-          }
+            if (audioBuffer.duration < maxDuration) {
+                const paddedBuffer = extendAudioBuffer(audioBuffer, maxDuration, audioCtx);
+                const wavBlob = audioBufferToWavBlob(paddedBuffer);
+                const newUrl = URL.createObjectURL(wavBlob);
+                setRecordedUrl(newUrl);
+                if (onUpdateRecording) {
+                    onUpdateRecording(paddedBuffer, newUrl);
+                }
+            }
+        } catch {
+            console.log("error")
         }
+        
       })();
     }, [maxDuration]);
 
@@ -337,6 +427,8 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
     }, [recordingSeconds]);
 
     const stopRecording = () => {
+        
+
         if (mediaRecorderRef.current && isRecording) {
         mediaRecorderRef.current.stop();
         setIsRecording(false); 
@@ -359,12 +451,14 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
         wavesurferInstance.current = null;
         setRecordedUrl('');
         clearTrack();
-        onTimeUpdate('0:00')
+        onPositionUpdate(0);
+        // onTimeUpdate('0:00');
         // initWaveSurfer();
     };
 
     const stopbutton = () => {
         wavesurferInstance.current.stop();
+        onPositionUpdate(0);
     }
 
     // for overdub
@@ -380,7 +474,7 @@ const AudioRecorder = forwardRef(({ triggerPlayAll, triggerStopAll, trackNumber,
         const totalLength = Math.max(
             baseBuffer.length,
             offsetSamples + newBuffer.length
-        );
+        ) + 1;
 
         const output = audioCtx.createBuffer(numChannels, totalLength, sampleRate);
 
