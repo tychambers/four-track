@@ -295,6 +295,7 @@ const exportAllTracks = (trackTitle) => {
         <DonationButton />
         {/* <button className='donate-button'>DONATE!</button> */}
       </div>
+      <div className='top-space' />
       <div className='daw-body'>
         {recorderRefs.map((ref, index) => (
           <AudioRecorder

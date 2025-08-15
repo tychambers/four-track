@@ -28,6 +28,12 @@
     width: 100%;
 }
 
+.audio-track-body:hover {
+    transform: scale(1.05);
+    border: 2px solid white;
+    z-index: 10;
+}
+
 .daw-body {
     justify-content: center;
     width: calc(100vw - 100px); /* full viewport width minus left/right margins */
@@ -37,7 +43,7 @@
     /* padding: 10px;               optional padding inside */
     background-color: #2e2e2e;  /* optional background so you can see the box */
     border-radius: 8px;        /* optional rounded corners */        /* optional, to prevent overflow */ 
-    border: 2px solid lightsalmon; 
+    /* border: 2px solid lightsalmon;  */
 }
 
 .sour-gummy-title {
@@ -49,10 +55,16 @@
     color: lightsalmon;
     font-variation-settings:
     "wdth" 100;
+    transition: color 2.5s ease-in-out;
+}
+
+.sour-gummy-title:hover {
+    color: lightgreen;
 }
 
 .track-tool-bar {
-    border: 2px solid lightsalmon;
+    /* border: 2px solid lightsalmon; */
+    background-color: lightsalmon;
     grid-area: 1 / 1 / 2 / 2;
 }
 
@@ -60,10 +72,18 @@
     background-color: #3C3D37;
     color: #ECDFCC;
 }
+.track-tool-bar-button:hover {
+    transform: scale(1.25);
+    border: 2px solid white;
+    z-index: 5;
+}
 
 .track-tool-bar-icon {
     width: 20px;
     height: 20px;
+}
+.track-tool-bar-icon:hover{
+    transform: scale(1.25);
 }
 
 .track-body {
@@ -94,7 +114,7 @@
     width: 100%;
     align-items: center;
     z-index: 10;
-    border: 2px solid lightsalmon;
+    border-top: 2px solid lightsalmon;
 }
 
 .tool-bar-button {
@@ -102,10 +122,21 @@
     color: #ECDFCC;
 }
 
+.tool-bar-button:hover {
+    transform: scale(1.25);
+    border: 2px solid #ECDFCC;
+}
+
 .export-tool-bar-button {
     margin-right: 5px;
     color: #1E201E;
     background-color: lightsalmon;
+}
+
+.export-tool-bar-button:hover {
+    background-color: lightgreen;
+    transform: scale(1.05);
+    border: 2px solid #ECDFCC;
 }
 
 .dark1 {
@@ -145,7 +176,7 @@
 }
 
 input[type="range"] {
-  accent-color: #697565; /* Or any valid CSS color value */
+  accent-color: lightsalmon; /* Or any valid CSS color value */
 }
 
 .export-audio-box {
@@ -169,10 +200,26 @@ input[type="range"] {
     align-items: "center"
 }
 
+.top-space {
+    height: 100px;
+}
+
 .title-tool-bar{
+    position: fixed;
+    background-color: #2e2e2e;
+    top: 0;
+    left: 0;         
+    width: 100%;     
+    z-index: 1000;
     padding: 10px;
     display: flex;
     gap: 20px;
+    border-bottom: 2px solid lightsalmon;
+}
+
+.venmo-icon:hover {
+    transform: scale(1.05);
+    border: 2px solid #ECDFCC;
 }
 
 .legend-button{
@@ -186,7 +233,14 @@ input[type="range"] {
     "wdth" 100;
 }
 
+.legend-button:hover{
+    transform: scale(1.05);
+    border: 2px solid #ECDFCC;
+}
+
+
 .donate-button{
+    margin-right: 50px;
     margin-left: auto;
     background-color: lightgreen;
     color:#2e2e2e;
@@ -197,6 +251,12 @@ input[type="range"] {
     font-variation-settings:
     "wdth" 100;
 }
+.donate-button:hover{
+    background-color: lightsalmon;
+    transform: scale(1.05);
+    border: 2px solid #ECDFCC;
+}
+
 
 .donation-icons {
     height: 100px;
@@ -225,6 +285,7 @@ input[type="range"] {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  animation: fadeIn 0.3s ease forwards;
 }
 
 /* Popup box */
@@ -238,7 +299,27 @@ input[type="range"] {
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: slideUp 1.4s ease forwards;
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slide up + fade for popup */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+
 .legend-text{
     color:#ECDFCC;
 }
@@ -272,6 +353,21 @@ input[type="range"] {
   flex: 1;
 }
 
+.center-items {
+    display: flex;
+    justify-content: center;
+}
+
+.popup-content-2 {
+  color:#ECDFCC;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  padding: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
 /* Footer */
 .popup-footer {
   padding: 12px;
@@ -281,7 +377,8 @@ input[type="range"] {
 }
 
 .close-button-footer {
-  background-color: #e5e7eb;
+  background-color: #2e2e2e;
+  color: #ECDFCC;
   border: none;
   padding: 6px 12px;
   border-radius: 6px;
@@ -289,7 +386,8 @@ input[type="range"] {
 }
 
 .close-button-footer:hover {
-  background-color: #d1d5db;
+  border: 2px solid #ECDFCC;
+  transform: scale(1.05);
 }
 
 @media screen and (max-width: 425px) {
@@ -317,5 +415,14 @@ input[type="range"] {
         grid-column-gap: 0px;
         grid-row-gap: 0px;
         width: 100%;
+    }
+    .four-track-page{
+        width: 100%;
+    }
+    .master-tool-bar {
+        height: 50px;
+    }
+    .export-tool-bar-button {
+        margin-right: 20px;
     }
 }
